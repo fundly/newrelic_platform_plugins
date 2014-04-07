@@ -8,7 +8,7 @@ require 'resque'
 require 'redis'
 
 module NewRelicResqueAgent
-  
+
   VERSION = '1.0.1'
 
   class Agent < NewRelic::Plugin::Agent::Base
@@ -17,7 +17,7 @@ module NewRelicResqueAgent
     agent_config_options :redis, :namespace
     agent_version NewRelicResqueAgent::VERSION
     agent_human_labels("Resque") { ident }
-    
+
     attr_reader :ident
 
     def setup_metrics
@@ -34,7 +34,7 @@ module NewRelicResqueAgent
         Resque.redis = redis
         Resque.redis.namespace = namespace unless namespace.nil?
         info = Resque.info
-        
+
         report_metric "Workers/Working", "Workers",           info[:working]
         report_metric "Workers/Total", "Workers",             info[:workers]
         report_metric "Jobs/Pending", "Jobs",                 info[:pending]
@@ -42,9 +42,11 @@ module NewRelicResqueAgent
         report_metric "Jobs/Rate/Failed", "Jobs/Second",           @total_failed.process(info[:failed])
         report_metric "Queues", "Queues",                     info[:queues]
         report_metric "Jobs/Failed", "Jobs",                  info[:failed] || 0
-        
-        
 
+        Resque.queues.each do |queue|
+          size = Resque.size(queue)
+          report_metric "Jobs/Pending/#{queue}", "Jobs", size
+        end
       rescue Redis::TimeoutError
         raise 'Redis server timeout'
       rescue  Redis::CannotConnectError, Redis::ConnectionError
@@ -55,7 +57,7 @@ module NewRelicResqueAgent
     end
 
   end
-  
+
   # Register and run the agent
   def self.run
     NewRelic::Plugin::Config.config.agents.keys.each do |agent|
